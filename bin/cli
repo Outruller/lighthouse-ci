@@ -104,7 +104,7 @@ function init(args, chromeFlags) {
       const { silent } = flags;
 
       if (flags.report) {
-        const outputPath = path.resolve(flags.report, 'report.html');
+        const outputPath = path.resolve(flags.report);
 
         await fs.writeFileSync(outputPath, htmlReport);
       }
