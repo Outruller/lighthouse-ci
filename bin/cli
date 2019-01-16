@@ -130,7 +130,7 @@ Promise.resolve()
 
     if (!silent) {
       for (const category in categoryReport) {
-        if (!categoryReport[category]) {
+        if (categoryReport[category] === undefined) {
           continue;
         }
 
