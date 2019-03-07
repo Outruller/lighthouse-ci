@@ -11,17 +11,11 @@
 const fs = require('fs');
 const path = require('path');
 const meow = require('meow');
-const ora = require('ora');
-const chalk = require('chalk');
 
 const { scoreReducer } = require('../lib/helpers');
 const { getScores, getChromeFlags } = require('../lib/config');
 const lighthouseReporter = require('../lib/lighthouse-reporter');
 const analizeScore = require('../lib/score-analizer');
-
-const spinner = ora({
-  color: 'yellow',
-});
 
 const cli = meow(
   `
@@ -120,13 +114,11 @@ Promise.resolve()
       return cli.showHelp();
     }
 
-    spinner.text = `Running Lighthouse on ${cli.input} ...\n`;
-    spinner.start();
+    console.info(`Running Lighthouse on ${cli.input} ...\n`);
 
     return init(cli.input, getChromeFlags());
   })
   .then(({ categoryReport, silent }) => {
-    spinner.stop();
 
     if (!silent) {
       for (const category in categoryReport) {
@@ -134,11 +126,7 @@ Promise.resolve()
           continue;
         }
 
-        console.log(
-          `${chalk.yellow(category)}: ${chalk.yellow(
-            categoryReport[category],
-          )}`,
-        );
+        console.info(`${category}: ${categoryReport[category]}`);
       }
     }
 
@@ -154,16 +142,15 @@ Promise.resolve()
       const isScorePassing = analizeScore(categoryReport, thresholds);
 
       if (isScorePassing) {
-        console.log(chalk.green('All checked scores are passing. 🎉\n'));
+        console.info('All checked scores are passing.\n');
         return process.exit(0);
       }
     }
 
-    console.log(chalk.red('Failed. ❌\n'));
-    throw new Error('lighthouse-ci test failed.');
+    console.info('Some of scores are below the thresholds.\n');
+    return process.exit(0);
   })
   .catch(err => {
-    spinner.stop();
-    console.log(chalk.red(err));
+    console.error(err);
     return process.exit(1);
   });
