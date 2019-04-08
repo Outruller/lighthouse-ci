@@ -26,7 +26,7 @@ $ npm install -g lighthouse-ci
   - [Usage](#usage)
   - [CLI](#cli)
   - [Lighthouse flags](#lighthouse-flags)
-    - [Chrome flags](#chrome-flags)
+  - [Chrome flags](#chrome-flags)
   - [Contributors](#contributors)
   - [License](#license)
 
@@ -44,22 +44,23 @@ $ lighthouse-ci --help
   Usage
     $ lighthouse-ci <target-url>
 
-  Example
+  Powershell examples
     $ lighthouse-ci https://example.com/
-    $ lighthouse-ci -s https://example.com/
-    $ lighthouse-ci https://example.com/ --score=75
-    $ lighthouse-ci https://example.com/ --accessibility=90 --seo=80
+    $ lighthouse-ci https://example.com/ --report="<file path>"
+    $ lighthouse-ci https://example.com/ --validate="{`"`"audits`"`": [{`"`"id`"`": `"`"accesskeys`"`", `"`"expect`"`": true}, {`"`"id`"`": `"`"first-contentful-paint`"`", `"`"warn`"`": 3000, `"`"error`"`": 5000}, {`"`"id`"`": `"`"speed-index`"`", `"`"warn`"`": 5000,`"`"error`"`": 10000}, {`"`"id`"`": `"`"interactive`"`",`"`"warn`"`": 8000,`"`"error`"`": 15000}], `"`"categories`"`": [{`"`"id`"`": `"`"performance`"`",`"`"warn`"`": 0.5,`"`"error`"`": 0.25}]}"
 
   Options
-    --report=<path>               Generate an HTML report inside a specified folder
-    -s, --silent                  Run Lighthouse without printing report log.
-    --score=<threshold>           Specify a score threshold for the CI to pass.
-    --performance=<threshold>     Specify a minimal performance score for the CI to pass.
-    --pwa=<threshold>             Specify a minimal pwa score for the CI to pass.
-    --accessibility=<threshold>   Specify a minimal accessibility score for the CI to pass.
-    --best-practice=<threshold>   [DEPRECATED] Use best-practices instead.
-    --best-practices=<threshold>  Specify a minimal best-practice score for the CI to pass.
-    --seo=<threshold>             Specify a minimal seo score for the CI to pass.
+    --report=<file path>          HTML report file path
+    --validate=<json>             JSON string with validation
+      {
+        "audits: [
+          {"id": "<audit id>", "expect": <boolean>},
+          {"id": "<audit id>", "warn": <number 0..1>, "error": <number 0..1>}
+        ],
+        "categories": [
+          {"id": "<category id>", "warn": <number 0..1>, "error": <number 0..1>}
+        ],
+      }
 ```
 
 ## Lighthouse flags

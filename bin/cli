@@ -12,33 +12,31 @@ const fs = require('fs');
 const path = require('path');
 const meow = require('meow');
 
-const { scoreReducer } = require('../lib/helpers');
-const { getScores, getChromeFlags } = require('../lib/config');
+const { getChromeFlags } = require('../lib/config');
 const lighthouseReporter = require('../lib/lighthouse-reporter');
-const analizeScore = require('../lib/score-analizer');
 
 const cli = meow(
   `
   Usage
     $ lighthouse-ci <target-url>
 
-  Example
+  Powershell examples
     $ lighthouse-ci https://example.com/
-    $ lighthouse-ci -s https://example.com/
-    $ lighthouse-ci https://example.com/ --score=75
-    $ lighthouse-ci https://example.com/ --accessibility=90 --seo=80
-    $ lighthouse-ci https://example.com/ --accessibility=90 --seo=80 --report=folder
+    $ lighthouse-ci https://example.com/ --report="<file path>"
+    $ lighthouse-ci https://example.com/ --validate="{\`"\`"audits\`"\`": [{\`"\`"id\`"\`": \`"\`"accesskeys\`"\`", \`"\`"expect\`"\`": true}, {\`"\`"id\`"\`": \`"\`"first-contentful-paint\`"\`", \`"\`"warn\`"\`": 3000, \`"\`"error\`"\`": 5000}, {\`"\`"id\`"\`": \`"\`"speed-index\`"\`", \`"\`"warn\`"\`": 5000,\`"\`"error\`"\`": 10000}, {\`"\`"id\`"\`": \`"\`"interactive\`"\`",\`"\`"warn\`"\`": 8000,\`"\`"error\`"\`": 15000}], \`"\`"categories\`"\`": [{\`"\`"id\`"\`": \`"\`"performance\`"\`",\`"\`"warn\`"\`": 0.5,\`"\`"error\`"\`": 0.25}]}"
 
   Options
-    -s, --silent                  Run Lighthouse without printing report log.
-    --report=<path>               Generate an HTML report inside a specified folder.
-    --score=<threshold>           Specify a score threshold for the CI to pass.
-    --performance=<threshold>     Specify a minimal performance score for the CI to pass.
-    --pwa=<threshold>             Specify a minimal pwa score for the CI to pass.
-    --accessibility=<threshold>   Specify a minimal accessibility score for the CI to pass.
-    --best-practice=<threshold>   [DEPRECATED] Use best-practices instead.
-    --best-practices=<threshold>  Specify a minimal best-practice score for the CI to pass.
-    --seo=<threshold>             Specify a minimal seo score for the CI to pass.
+    --report=<file path>          HTML report file path
+    --validate=<json>             JSON string with validation
+      {
+        "audits: [
+          {"id": "<audit id>", "expect": <boolean>},
+          {"id": "<audit id>", "warn": <number 0..1>, "error": <number 0..1>}
+        ],
+        "categories": [
+          {"id": "<category id>", "warn": <number 0..1>, "error": <number 0..1>}
+        ],
+      }
 
   In addition to listed "lighthouse-ci" configuration flags, it is also possible to pass any native "lighthouse" flag.
   To see the full list of available flags, please refer to the official Google Lighthouse documentation at https://github.com/GoogleChrome/lighthouse#cli-options
@@ -48,45 +46,24 @@ const cli = meow(
       report: {
         type: 'string',
       },
-      silent: {
-        type: 'boolean',
-        alias: 's',
-        default: false,
+      validate: {
+        type: 'string',
+        alias: 'v',
+        default: "",
       },
-      score: { type: 'string' },
-      performance: { type: 'string' },
-      pwa: { type: 'string' },
-      accessibility: { type: 'string' },
-      bestPractice: { type: 'string' },
-      bestPractices: { type: 'string' },
-      seo: { type: 'string' },
     },
   },
 );
 
 const {
   report,
-  silent,
-  s,
-  score,
-  performance,
-  pwa,
-  accessibility,
-  bestPractice,
-  bestPractices,
-  seo,
-  ...lighthouseFlags} = cli.flags;
-const calculatedBestPractices = bestPractice || bestPractices;
+  validate,
+  ...lighthouseFlags
+} = cli.flags;
+
 const flags = {
   report,
-  silent,
-  s,
-  score,
-  performance,
-  pwa,
-  accessibility,
-  ...(calculatedBestPractices && { 'best-practices': calculatedBestPractices }),
-  seo
+  validate: validate && JSON.parse(validate),
 };
 
 function init(args, chromeFlags) {
@@ -94,8 +71,7 @@ function init(args, chromeFlags) {
 
   // Run Google Lighthouse
   return lighthouseReporter(testUrl, flags, chromeFlags, lighthouseFlags).then(
-    async ({ categoryReport, htmlReport }) => {
-      const { silent } = flags;
+    async ({ ciReport, validationReport, htmlReport }) => {
 
       if (flags.report) {
         const outputPath = path.resolve(flags.report);
@@ -103,7 +79,7 @@ function init(args, chromeFlags) {
         await fs.writeFileSync(outputPath, htmlReport);
       }
 
-      return { categoryReport, silent };
+      return { ciReport, validationReport };
     },
   );
 }
@@ -114,41 +90,91 @@ Promise.resolve()
       return cli.showHelp();
     }
 
-    console.info(`Running Lighthouse on ${cli.input} ...\n`);
+    console.log(`Running Lighthouse on ${cli.input} ...\n`);
 
     return init(cli.input, getChromeFlags());
   })
-  .then(({ categoryReport, silent }) => {
-
-    if (!silent) {
-      for (const category in categoryReport) {
-        if (categoryReport[category] === undefined) {
-          continue;
-        }
-
-        console.info(`${category}: ${categoryReport[category]}`);
+  .then(({ ciReport, validationReport }) => {
+    for (const category in ciReport) {
+      if (!ciReport[category]) {
+        continue;
       }
+
+      console.info(`\t${category}: ${Math.round(ciReport[category] * 100)}`);
     }
 
-    return categoryReport;
+    return validationReport;
   })
-  .then(categoryReport => {
-    let thresholds = scoreReducer(flags, getScores());
+  .then(validationReport => {
+    if (!validationReport) {
+      return process.exit(0);
+    }
 
-    thresholds =
-      Object.keys(thresholds).length === 0 ? { score: 100 } : thresholds;
+    let failPipeline = false;
 
-    if (thresholds && Object.keys(thresholds).length !== 0) {
-      const isScorePassing = analizeScore(categoryReport, thresholds);
+    const categories = validationReport.categories;
+    if (categories && categories.length > 0) {
+      console.log("\n\tValidating categories:\n");
+      for (const category of categories) {
+        const score = Number(category.score);
+        const warn = Number(category.warn);
+        const error = Number(category.error);
+        const categoryScoreString = `\t\t${category.id}: ${Math.round(category.score * 100)}`;
 
-      if (isScorePassing) {
-        console.info('All checked scores are passing.\n');
-        return process.exit(0);
+        if (score > warn) {
+          console.info(categoryScoreString + ' - ok');
+        } else if (score > error && score <= warn) {
+          console.warn(categoryScoreString + ' - warning');
+        } else {
+          failPipeline = true;
+          console.error(categoryScoreString + + ' - error');
+        }
       }
     }
 
-    console.info('Some of scores are below the thresholds.\n');
-    return process.exit(0);
+    const audits = validationReport.audits;
+    if (audits && audits.length > 0) {
+      console.log("\n\tValidating audits:\n");
+      for (const audit of audits) {
+
+        const value = audit.rawValue;
+        switch (typeof value) {
+          case "number":
+            const warn = Number(audit.warn);
+            const error = Number(audit.error);
+            const auditNumberValueString = `\t\t${audit.id}: ${audit.displayValue}`;
+
+            if (value < warn) {
+              console.info(auditNumberValueString + ' - ok');
+            } else if (value >= warn && value < error) {
+              console.warn(auditNumberValueString + ' - warning');
+            } else {
+              console.error(auditNumberValueString + ' - failed');
+              failPipeline = true;
+            }
+            break;
+          case "boolean":
+            const expect = Boolean(audit.expect);
+            const auditBooleanValueString = `\t\t${audit.id}`;
+
+            if (value === expect) {
+              console.info(auditBooleanValueString + ' - ok');
+            } else {
+              console.error(auditBooleanValueString + ' - failed');
+              failPipeline = true;
+            }
+            break;
+        }
+      }
+    }
+
+    if (!failPipeline) {
+      console.log('\nValidation successful.\n');
+      return process.exit(0);
+    }
+
+    console.error('\nValidation failed.\n');
+    return process.exit(1);
   })
   .catch(err => {
     console.error(err);
