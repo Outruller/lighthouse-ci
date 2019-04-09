@@ -47,11 +47,12 @@ $ lighthouse-ci --help
   Powershell examples
     $ lighthouse-ci https://example.com/
     $ lighthouse-ci https://example.com/ --report="<file path>"
-    $ lighthouse-ci https://example.com/ --validate="{`"`"audits`"`": [{`"`"id`"`": `"`"accesskeys`"`", `"`"expect`"`": true}, {`"`"id`"`": `"`"first-contentful-paint`"`", `"`"warn`"`": 3000, `"`"error`"`": 5000}, {`"`"id`"`": `"`"speed-index`"`", `"`"warn`"`": 5000,`"`"error`"`": 10000}, {`"`"id`"`": `"`"interactive`"`",`"`"warn`"`": 8000,`"`"error`"`": 15000}], `"`"categories`"`": [{`"`"id`"`": `"`"performance`"`",`"`"warn`"`": 0.5,`"`"error`"`": 0.25}]}"
+    $ lighthouse-ci https://example.com/ --validate="{`\`"audits`\`":[{`\`"id`\`":`\`"first-contentful-paint`\`"`,`\`"warn`\`":3000`,`\`"error`\`":5000}]}"
+    $ lighthouse-ci https://example.com/ --validate="{\`"categories\`":[{\`"id\`":\`"performance\`"`,\`"warn\`":0.5`,\`"error\`":0.25}]}"
 
   Options
     --report=<file path>          HTML report file path
-    --validate=<json>             JSON string with validation
+    --validate="<json>"             JSON string with validation
       {
         "audits: [
           {"id": "<audit id>", "expect": <boolean>},
